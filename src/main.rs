@@ -5,9 +5,10 @@ use deno_core::error::AnyError;
 use deno_core::futures::FutureExt;
 use deno_core::op;
 use deno_core::Extension;
-use deno_core::Op;
+use deno_core::Snapshot;
 use std::rc::Rc;
 
+static RUNTIME_SNAPSHOT: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/RUNJS_SNAPSHOT.bin"));
 struct TsModuleLoader;
 
 impl deno_core::ModuleLoader for TsModuleLoader {
@@ -15,7 +16,7 @@ impl deno_core::ModuleLoader for TsModuleLoader {
         &self,
         specifier: &str,
         referrer: &str,
-        kind: deno_core::ResolutionKind,
+        _kind: deno_core::ResolutionKind,
     ) -> Result<deno_core::ModuleSpecifier, deno_core::anyhow::Error> {
         deno_core::resolve_import(specifier, referrer).map_err(|e| e.into())
     }
@@ -28,7 +29,7 @@ impl deno_core::ModuleLoader for TsModuleLoader {
         let module_specifier = module_specifier.clone();
         async move {
             let path = module_specifier.to_file_path().unwrap();
-            let media_type = MediaType::from_path(&path.as_path());
+            let media_type = MediaType::from_path(path.as_path());
             let (module_type, should_transpile) = match media_type {
                 MediaType::JavaScript | MediaType::Mjs | MediaType::Cjs => {
                     (deno_core::ModuleType::JavaScript, false)
@@ -63,7 +64,7 @@ impl deno_core::ModuleLoader for TsModuleLoader {
             // load and return module
             let module = deno_core::ModuleSource::new(
                 module_type,
-                deno_core::FastString::Owned(code.to_owned().into_boxed_str()),
+                deno_core::FastString::Owned(code.into_boxed_str()),
                 &module_specifier,
             );
             Ok(module)
@@ -100,23 +101,20 @@ async fn run_js(file_path: &str) -> Result<(), AnyError> {
     let current_dirctory = std::env::current_dir()?;
     let main_module = deno_core::resolve_path(file_path, current_dirctory.as_path())?;
 
-    let runjs_extension = Extension::builder("fs")
+    let runjs_extension = Extension::builder("runjs")
         .ops(vec![
-            op_read_file::DECL,
-            op_write_file::DECL,
-            op_remove_file::DECL,
-            op_fetch::DECL,
+            op_read_file::decl(),
+            op_write_file::decl(),
+            op_remove_file::decl(),
+            op_fetch::decl(),
         ])
         .build();
     let mut js_runtime = deno_core::JsRuntime::new(deno_core::RuntimeOptions {
         module_loader: Some(Rc::new(TsModuleLoader)),
+        startup_snapshot: Some(Snapshot::Static(RUNTIME_SNAPSHOT)),
         extensions: vec![runjs_extension],
         ..Default::default()
     });
-    js_runtime.execute_script(
-        "[runjs:runtime.js]",
-        deno_core::FastString::StaticAscii(include_str!("./runtime.js")),
-    )?;
 
     let mod_id = js_runtime.load_main_module(&main_module, None).await?;
     let result = js_runtime.mod_evaluate(mod_id);
