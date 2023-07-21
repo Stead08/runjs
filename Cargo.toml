@@ -7,9 +7,9 @@ edition = "2021"
 
 [dependencies]
 deno_ast = { version = "0.27.2", features = ["transpiling"] }
-deno_core = "0.190.0"
+deno_core = "0.195.0"
 reqwest = "0.11.18"
 tokio = { version = "1.29.1", features = ["full"] }
 
 [build-dependencies]
-deno_core = "0.190.0"
+deno_core = "0.195.0"

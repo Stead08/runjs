@@ -5,6 +5,7 @@ use deno_core::error::AnyError;
 use deno_core::futures::FutureExt;
 use deno_core::op;
 use deno_core::Extension;
+use deno_core::Op;
 use deno_core::Snapshot;
 use std::rc::Rc;
 
@@ -103,10 +104,10 @@ async fn run_js(file_path: &str) -> Result<(), AnyError> {
 
     let runjs_extension = Extension::builder("runjs")
         .ops(vec![
-            op_read_file::decl(),
-            op_write_file::decl(),
-            op_remove_file::decl(),
-            op_fetch::decl(),
+            op_read_file::DECL,
+            op_write_file::DECL,
+            op_remove_file::DECL,
+            op_fetch::DECL,
         ])
         .build();
     let mut js_runtime = deno_core::JsRuntime::new(deno_core::RuntimeOptions {
